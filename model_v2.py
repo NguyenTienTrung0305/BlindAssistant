@@ -17,31 +17,30 @@ class CustomMobilenet(nn.Module):
         super(CustomMobilenet, self).__init__()
         self.mobilenet = models.mobilenet_v2(pretrained=True).features # chỉ lấy phần convolutons, bỏ phần fc
         
-        # self.conv4_3 = nn.Conv2d(32, 512, kernel_size=3, padding=1, stride=1)
-        # self.conv7 = nn.Conv2d(1280, 1024, kernel_size=1, stride=1)
+        self.conv4_3 = nn.Conv2d(32, 512, kernel_size=3, padding=1, stride=1)
+        self.conv7 = nn.Conv2d(1280, 1024, kernel_size=1, stride=1)
         
     def forward(self, x):
-        # feature_l_1 = x 
         for i, layer in enumerate(self.mobilenet): # (N, 3, 300, 300)
             x = layer(x)
             if i == 6: # features map của lớp thứ 6 (N, 32, 38, 38)
-                feature_l_1 = x # mobilnet thuần
+                # feature_l_1 = x # mobilnet thuần
                 
-                # feature_l_1 = self.conv4_3(x) # chuyen thanh (N, 512, 38, 38)\
+                feature_l_1 = self.conv4_3(x) # chuyen thanh (N, 512, 38, 38)
         
-        feature_l_2 = x # mobile net thuần
+        # feature_l_2 = x # mobile net thuần
         
-        # feature_l_2 = self.conv7(x) # (N, 1024, 10, 10)
-        # feature_l_2 = F.interpolate(feature_l_2, size=(19, 19), mode='bilinear', align_corners=False) # (N, 1024, 19, 19)
+        feature_l_2 = self.conv7(x) # (N, 1024, 10, 10)
+        feature_l_2 = F.interpolate(feature_l_2, size=(19, 19), mode='bilinear', align_corners=False) # (N, 1024, 19, 19)
         return feature_l_1, feature_l_2 
         
 class SupportConvolutions(nn.Module):
     def __init__(self):
         super(SupportConvolutions, self).__init__()
-        self.conv1 = nn.Conv2d(1280, 512, kernel_size=1, stride=1, padding=0)
+        # self.conv1 = nn.Conv2d(1280, 512, kernel_size=1, stride=1, padding=0)
         
-        # self.conv1_1 = nn.Conv2d(1024, 256, kernel_size=1, padding=0)
-        # self.conv1_2 = nn.Conv2d(256, 512, kernel_size=3, stride=2, padding=1)
+        self.conv1_1 = nn.Conv2d(1024, 256, kernel_size=1, padding=0)
+        self.conv1_2 = nn.Conv2d(256, 512, kernel_size=3, stride=2, padding=1)
          
         self.conv2_1 = nn.Conv2d(512, 128, kernel_size=1, padding=0) 
         self.conv2_2 = nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=1)
@@ -62,19 +61,19 @@ class SupportConvolutions(nn.Module):
                 
                 
     def forward(self, feature_l_2):
-        out_cv = self.conv1(feature_l_2) # (N, 512, 10, 10)
-        out_cv = F.relu(out_cv)
-        featuremap_1 = out_cv
+        # out_cv = self.conv1(feature_l_2) # (N, 512, 10, 10)
+        # out_cv = F.relu(out_cv)
+        # featuremap_1 = out_cv
         
-        # out_cv1_1 = self.conv1_1(feature_l_2) # (N, 256, 19, 19)
-        # out_cv1_1 = F.relu(out_cv1_1)
+        out_cv1_1 = self.conv1_1(feature_l_2) # (N, 256, 19, 19)
+        out_cv1_1 = F.relu(out_cv1_1)
         
-        # out_cv1_2 = self.conv1_2(out_cv1_1) # (N, 512, 10, 10)
-        # out_cv1_2 = F.relu(out_cv1_2) 
-        # featuremap_1 = out_cv1_2
+        out_cv1_2 = self.conv1_2(out_cv1_1) # (N, 512, 10, 10)
+        out_cv1_2 = F.relu(out_cv1_2) 
+        featuremap_1 = out_cv1_2
         
-        out_cv2_1 = self.conv2_1(out_cv)
-        # out_cv2_1 = self.conv2_1(out_cv1_2) # (N, 128, 10, 10)
+        # out_cv2_1 = self.conv2_1(out_cv)
+        out_cv2_1 = self.conv2_1(out_cv1_2) # (N, 128, 10, 10)
         out_cv2_1 = F.relu(out_cv2_1)
         
         out_cv2_2 = self.conv2_2(out_cv2_1) # (N, 256, 5, 5)
@@ -113,20 +112,20 @@ class PredictBox(nn.Module):
                    'featuremap_4': 4} # large object
         
         # n_boxes['feature_l_1'] * 4: (mỗi anchor box cần 4 giá trị để tạo ra bounding box)
-        self.loc_feature_l_1 = nn.Conv2d(32, n_boxes['feature_l_1'] * 4, kernel_size=3, padding=1)
-        self.loc_feature_l_2 = nn.Conv2d(1280, n_boxes['feature_l_2'] * 4, kernel_size=3, padding=1)
-        # self.loc_feature_l_1 = nn.Conv2d(512, n_boxes['feature_l_1'] * 4, kernel_size=3, padding=1)
-        # self.loc_feature_l_2 = nn.Conv2d(1024, n_boxes['feature_l_2'] * 4, kernel_size=3, padding=1)
+        # self.loc_feature_l_1 = nn.Conv2d(32, n_boxes['feature_l_1'] * 4, kernel_size=3, padding=1)
+        # self.loc_feature_l_2 = nn.Conv2d(1280, n_boxes['feature_l_2'] * 4, kernel_size=3, padding=1)
+        self.loc_feature_l_1 = nn.Conv2d(512, n_boxes['feature_l_1'] * 4, kernel_size=3, padding=1)
+        self.loc_feature_l_2 = nn.Conv2d(1024, n_boxes['feature_l_2'] * 4, kernel_size=3, padding=1)
         self.loc_featuremap_1 = nn.Conv2d(512, n_boxes['featuremap_1'] * 4, kernel_size=3, padding=1)
         self.loc_featuremap_2 = nn.Conv2d(256, n_boxes['featuremap_2'] * 4, kernel_size=3, padding=1)
         self.loc_featuremap_3 = nn.Conv2d(256, n_boxes['featuremap_3'] * 4, kernel_size=3, padding=1)
         self.loc_featuremap_4 = nn.Conv2d(256, n_boxes['featuremap_4'] * 4, kernel_size=3, padding=1)
         
         # n_boxes['feature_l_1'] * n_classes: (mỗi anchor box thuộc 1 class trong n_classses)
-        self.cl_feature_l_1 = nn.Conv2d(32, n_boxes['feature_l_1'] * n_classes, kernel_size=3, padding=1)
-        self.cl_feature_l_2 = nn.Conv2d(1280, n_boxes['feature_l_2'] * n_classes, kernel_size=3, padding=1)
-        # self.cl_feature_l_1 = nn.Conv2d(512, n_boxes['feature_l_1'] * n_classes, kernel_size=3, padding=1)
-        # self.cl_feature_l_2 = nn.Conv2d(1024, n_boxes['feature_l_2'] * n_classes, kernel_size=3, padding=1)
+        # self.cl_feature_l_1 = nn.Conv2d(32, n_boxes['feature_l_1'] * n_classes, kernel_size=3, padding=1)
+        # self.cl_feature_l_2 = nn.Conv2d(1280, n_boxes['feature_l_2'] * n_classes, kernel_size=3, padding=1)
+        self.cl_feature_l_1 = nn.Conv2d(512, n_boxes['feature_l_1'] * n_classes, kernel_size=3, padding=1)
+        self.cl_feature_l_2 = nn.Conv2d(1024, n_boxes['feature_l_2'] * n_classes, kernel_size=3, padding=1)
         self.cl_featuremap_1 = nn.Conv2d(512, n_boxes['featuremap_1'] * n_classes, kernel_size=3, padding=1)
         self.cl_featuremap_2 = nn.Conv2d(256, n_boxes['featuremap_2'] * n_classes, kernel_size=3, padding=1)
         self.cl_featuremap_3 = nn.Conv2d(256, n_boxes['featuremap_3'] * n_classes, kernel_size=3, padding=1)
@@ -216,7 +215,7 @@ class SSD300(nn.Module):
         self.addconv = SupportConvolutions()
         self.predconv = PredictBox(n_classes=n_classes)
         
-        self.rescale = nn.Parameter(torch.FloatTensor(1, 32, 1, 1))
+        self.rescale = nn.Parameter(torch.FloatTensor(1, 512, 1, 1))
         nn.init.constant_(self.rescale, 20)
         
         self.priors_cxcy = self.create_prior_boxes()
@@ -238,7 +237,7 @@ class SSD300(nn.Module):
     def create_prior_boxes(self):
         # Feature Map Dimensions
         fmap_dims = {'fm_l1': 38,
-                     'fm_l2': 10,
+                     'fm_l2': 19,
                      'fm1': 10,
                      'fm2': 5,
                      'fm3': 3,

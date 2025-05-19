@@ -4,12 +4,27 @@ import torch
 import random
 import xml.etree.ElementTree as ET
 import torchvision.transforms.functional as FT
+import numpy as np
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Label map
+# voc_labels = ("person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat",
+#     "traffic light", "fire hydrant", "street sign", "stop sign", "parking meter", "bench", "bird",
+#     "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "hat", "backpack",
+#     "umbrella", "shoe", "eye glasses", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard",
+#     "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket",
+#     "bottle", "plate", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple",
+#     "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch",
+#     "potted plant", "bed", "mirror", "dining table", "window", "desk", "toilet", "door", "tv", "laptop",
+#     "mouse", "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink", "refrigerator",
+#     "blender", "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush", "hair brush")
+
 voc_labels = ('aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow', 'diningtable',
               'dog', 'horse', 'motorbike', 'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor')
+
+
+
 label_map = {k: v + 1 for v, k in enumerate(voc_labels)}
 label_map['background'] = 0
 rev_label_map = {v: k for k, v in label_map.items()}  # Inverse mapping
@@ -18,6 +33,9 @@ rev_label_map = {v: k for k, v in label_map.items()}  # Inverse mapping
 distinct_colors = ['#e6194b', '#3cb44b', '#ffe119', '#0082c8', '#f58231', '#911eb4', '#46f0f0', '#f032e6',
                    '#d2f53c', '#fabebe', '#008080', '#000080', '#aa6e28', '#fffac8', '#800000', '#aaffc3', '#808000',
                    '#ffd8b1', '#e6beff', '#808080', '#FFFFFF']
+
+# distinct_colors = COLORS = np.random.randint(0, 255, size=(len(voc_labels), 3), dtype=np.uint8)
+
 label_color_map = {k: distinct_colors[i] for i, k in enumerate(label_map.keys())}
 
 
@@ -50,13 +68,6 @@ def parse_annotation(annotation_path):
 
 
 def create_data_lists(voc07_path, voc12_path, output_folder):
-    """
-    Create lists of images, the bounding boxes and labels of the objects in these images, and save these to file.
-
-    :param voc07_path: path to the 'VOC2007' folder
-    :param voc12_path: path to the 'VOC2012' folder
-    :param output_folder: folder where the JSONs must be saved
-    """
     voc07_path = os.path.abspath(voc07_path)
     voc12_path = os.path.abspath(voc12_path)
 
@@ -124,15 +135,7 @@ def create_data_lists(voc07_path, voc12_path, output_folder):
 
 
 def decimate(tensor, m):
-    """
-    Decimate a tensor by a factor 'm', i.e. downsample by keeping every 'm'th value.
-
-    This is used when we convert FC layers to equivalent Convolutional layers, BUT of a smaller size.
-
-    :param tensor: tensor to be decimated
-    :param m: list of decimation factors for each dimension of the tensor; None if not to be decimated along a dimension
-    :return: decimated tensor
-    """
+    # chuyển đổi các lớp FC thành các lớp Convolutional tương đương, NHƯNG có kích thước nhỏ hơn
     assert tensor.dim() == len(m)
     for d in range(tensor.dim()):
         if m[d] is not None:
@@ -143,19 +146,9 @@ def decimate(tensor, m):
 
 
 def calculate_mAP(det_boxes, det_labels, det_scores, true_boxes, true_labels, true_difficulties):
-    """
-    Calculate the Mean Average Precision (mAP) of detected objects.
-
-    See https://medium.com/@jonathan_hui/map-mean-average-precision-for-object-detection-45c121a31173 for an explanation
-
-    :param det_boxes: list of tensors, one tensor for each image containing detected objects' bounding boxes
-    :param det_labels: list of tensors, one tensor for each image containing detected objects' labels
-    :param det_scores: list of tensors, one tensor for each image containing detected objects' labels' scores
-    :param true_boxes: list of tensors, one tensor for each image containing actual objects' bounding boxes
-    :param true_labels: list of tensors, one tensor for each image containing actual objects' labels
-    :param true_difficulties: list of tensors, one tensor for each image containing actual objects' difficulty (0 or 1)
-    :return: list of average precisions for all classes, mean average precision (mAP)
-    """
+    # mAP là giá trị trung bình của tất cả các giá trị AP tính được cho từng lớp
+    # AP (Average Precision): Là diện tích dưới đường cong Precision-Recall, thường được tính bằng phương pháp tích phân hoặc các 
+    # giá trị Precision tại những điểm khác nhau của Recall
     assert len(det_boxes) == len(det_labels) == len(det_scores) == len(true_boxes) == len(
         true_labels) == len(
         true_difficulties)  # these are all lists of tensors of the same length, i.e. number of images
@@ -278,73 +271,33 @@ def calculate_mAP(det_boxes, det_labels, det_scores, true_boxes, true_labels, tr
 
 
 def xy_to_cxcy(xy):
-    """
-    Convert bounding boxes from boundary coordinates (x_min, y_min, x_max, y_max) to center-size coordinates (c_x, c_y, w, h).
-
-    :param xy: bounding boxes in boundary coordinates, a tensor of size (n_boxes, 4)
-    :return: bounding boxes in center-size coordinates, a tensor of size (n_boxes, 4)
-    """
     return torch.cat([(xy[:, 2:] + xy[:, :2]) / 2,  # c_x, c_y
                       xy[:, 2:] - xy[:, :2]], 1)  # w, h
 
 
 def cxcy_to_xy(cxcy):
-    """
-    Convert bounding boxes from center-size coordinates (c_x, c_y, w, h) to boundary coordinates (x_min, y_min, x_max, y_max).
-
-    :param cxcy: bounding boxes in center-size coordinates, a tensor of size (n_boxes, 4)
-    :return: bounding boxes in boundary coordinates, a tensor of size (n_boxes, 4)
-    """
     return torch.cat([cxcy[:, :2] - (cxcy[:, 2:] / 2),  # x_min, y_min
                       cxcy[:, :2] + (cxcy[:, 2:] / 2)], 1)  # x_max, y_max
 
 
+# Trong các kiến trúc như SSD hoặc YOLO, bounding boxes được dự đoán dựa trên các prior boxes (hay còn gọi là anchor boxes), là các hộp định nghĩa trước.
+# Thay vì dự đoán trực tiếp tọa độ tuyệt đối, mô hình chỉ dự đoán sự chênh lệch tương đối giữa bounding box thực (ground-truth) và prior box. Ví dụ:
+    # gcx, gcy là sự chênh lệch của tọa độ tâm so với tâm của prior box,
+    # gw, gh là tỷ lệ logarit của kích thước bounding box thực so với prior box
+# Lợi ích:
+    # Tọa độ chênh lệch (chuẩn hóa) có phạm vi hẹp hơn (giá trị nhỏ hơn), làm giảm độ phức tạp của bài toán.
+    # Dự đoán tương đối giúp mô hình tận dụng hiệu quả các prior boxes để khớp với bounding boxes thực tế
 def cxcy_to_gcxgcy(cxcy, priors_cxcy):
-    """
-    Encode bounding boxes (that are in center-size form) w.r.t. the corresponding prior boxes (that are in center-size form).
-
-    For the center coordinates, find the offset with respect to the prior box, and scale by the size of the prior box.
-    For the size coordinates, scale by the size of the prior box, and convert to the log-space.
-
-    In the model, we are predicting bounding box coordinates in this encoded form.
-
-    :param cxcy: bounding boxes in center-size coordinates, a tensor of size (n_priors, 4)
-    :param priors_cxcy: prior boxes with respect to which the encoding must be performed, a tensor of size (n_priors, 4)
-    :return: encoded bounding boxes, a tensor of size (n_priors, 4)
-    """
-
-    # The 10 and 5 below are referred to as 'variances' in the original Caffe repo, completely empirical
-    # They are for some sort of numerical conditioning, for 'scaling the localization gradient'
-    # See https://github.com/weiliu89/caffe/issues/155
     return torch.cat([(cxcy[:, :2] - priors_cxcy[:, :2]) / (priors_cxcy[:, 2:] / 10),  # g_c_x, g_c_y
                       torch.log(cxcy[:, 2:] / priors_cxcy[:, 2:]) * 5], 1)  # g_w, g_h
 
 
 def gcxgcy_to_cxcy(gcxgcy, priors_cxcy):
-    """
-    Decode bounding box coordinates predicted by the model, since they are encoded in the form mentioned above.
-
-    They are decoded into center-size coordinates.
-
-    This is the inverse of the function above.
-
-    :param gcxgcy: encoded bounding boxes, i.e. output of the model, a tensor of size (n_priors, 4)
-    :param priors_cxcy: prior boxes with respect to which the encoding is defined, a tensor of size (n_priors, 4)
-    :return: decoded bounding boxes in center-size form, a tensor of size (n_priors, 4)
-    """
-
     return torch.cat([gcxgcy[:, :2] * priors_cxcy[:, 2:] / 10 + priors_cxcy[:, :2],  # c_x, c_y
                       torch.exp(gcxgcy[:, 2:] / 5) * priors_cxcy[:, 2:]], 1)  # w, h
 
 
 def find_intersection(set_1, set_2):
-    """
-    Find the intersection of every box combination between two sets of boxes that are in boundary coordinates.
-
-    :param set_1: set 1, a tensor of dimensions (n1, 4)
-    :param set_2: set 2, a tensor of dimensions (n2, 4)
-    :return: intersection of each of the boxes in set 1 with respect to each of the boxes in set 2, a tensor of dimensions (n1, n2)
-    """
 
     # PyTorch auto-broadcasts singleton dimensions
     lower_bounds = torch.max(set_1[:, :2].unsqueeze(1), set_2[:, :2].unsqueeze(0))  # (n1, n2, 2)
@@ -376,21 +329,9 @@ def find_jaccard_overlap(set_1, set_2):
     return intersection / union  # (n1, n2)
 
 
-# Some augmentation functions below have been adapted from
-# From https://github.com/amdegroot/ssd.pytorch/blob/master/utils/augmentations.py
-
+# Mở rộng ảnh: Tăng cường độ đa dạng của dữ liệu bằng cách thay đổi tỷ lệ và vị trí của ảnh.
+# Điều chỉnh bounding boxes: Đảm bảo tọa độ của các đối tượng vẫn đúng khi ảnh thay đổi
 def expand(image, boxes, filler):
-    """
-    Perform a zooming out operation by placing the image in a larger canvas of filler material.
-
-    Helps to learn to detect smaller objects.
-
-    :param image: image, a tensor of dimensions (3, original_h, original_w)
-    :param boxes: bounding boxes in boundary coordinates, a tensor of dimensions (n_objects, 4)
-    :param filler: RBG values of the filler material, a list like [R, G, B]
-    :return: expanded image, updated bounding box coordinates
-    """
-    # Calculate dimensions of proposed expanded (zoomed-out) image
     original_h = image.size(1)
     original_w = image.size(2)
     max_scale = 4
@@ -401,10 +342,7 @@ def expand(image, boxes, filler):
     # Create such an image with the filler
     filler = torch.FloatTensor(filler)  # (3)
     new_image = torch.ones((3, new_h, new_w), dtype=torch.float) * filler.unsqueeze(1).unsqueeze(1)  # (3, new_h, new_w)
-    # Note - do not use expand() like new_image = filler.unsqueeze(1).unsqueeze(1).expand(3, new_h, new_w)
-    # because all expanded values will share the same memory, so changing one pixel will change all
 
-    # Place the original image at random coordinates in this new image (origin at top-left of image)
     left = random.randint(0, new_w - original_w)
     right = left + original_w
     top = random.randint(0, new_h - original_h)
@@ -417,21 +355,8 @@ def expand(image, boxes, filler):
 
     return new_image, new_boxes
 
-
+# cắt ngẫu nhiên (random crop) một phần của hình ảnh và điều chỉnh tọa độ các hộp giới hạn (bounding boxes) tương ứng
 def random_crop(image, boxes, labels, difficulties):
-    """
-    Performs a random crop in the manner stated in the paper. Helps to learn to detect larger and partial objects.
-
-    Note that some objects may be cut out entirely.
-
-    Adapted from https://github.com/amdegroot/ssd.pytorch/blob/master/utils/augmentations.py
-
-    :param image: image, a tensor of dimensions (3, original_h, original_w)
-    :param boxes: bounding boxes in boundary coordinates, a tensor of dimensions (n_objects, 4)
-    :param labels: labels of objects, a tensor of dimensions (n_objects)
-    :param difficulties: difficulties of detection of these objects, a tensor of dimensions (n_objects)
-    :return: cropped image, updated bounding box coordinates, updated labels, updated difficulties
-    """
     original_h = image.size(1)
     original_w = image.size(2)
     # Keep choosing a minimum overlap until a successful crop is made
@@ -503,15 +428,8 @@ def random_crop(image, boxes, labels, difficulties):
 
             return new_image, new_boxes, new_labels, new_difficulties
 
-
+# thực hiện phép lật ngang (horizontal flip) một ảnh và điều chỉnh tọa độ bounding boxes tương ứng
 def flip(image, boxes):
-    """
-    Flip image horizontally.
-
-    :param image: image, a PIL Image
-    :param boxes: bounding boxes in boundary coordinates, a tensor of dimensions (n_objects, 4)
-    :return: flipped image, updated bounding box coordinates
-    """
     # Flip image
     new_image = FT.hflip(image)
 
@@ -581,20 +499,9 @@ def photometric_distort(image):
 
 
 def transform(image, boxes, labels, difficulties, split):
-    """
-    Apply the transformations above.
-
-    :param image: image, a PIL Image
-    :param boxes: bounding boxes in boundary coordinates, a tensor of dimensions (n_objects, 4)
-    :param labels: labels of objects, a tensor of dimensions (n_objects)
-    :param difficulties: difficulties of detection of these objects, a tensor of dimensions (n_objects)
-    :param split: one of 'TRAIN' or 'TEST', since different sets of transformations are applied
-    :return: transformed image, transformed bounding box coordinates, transformed labels, transformed difficulties
-    """
+   
     assert split in {'TRAIN', 'TEST'}
 
-    # Mean and standard deviation of ImageNet data that our base VGG from torchvision was trained on
-    # see: https://pytorch.org/docs/stable/torchvision/models.html
     mean = [0.485, 0.456, 0.406]
     std = [0.229, 0.224, 0.225]
 
@@ -678,7 +585,7 @@ def save_checkpoint(epoch, model, optimizer):
              'model': model,
              'optimizer': optimizer}
     print("ehhe")
-    filename = 'D:\Code\Python\Project\BlindAssistant\checkpoint_ssd300_v2.pth.tar'
+    filename = 'D:\Code\Python\Project\BlindAssistant\checkpoint_ssd300.pth.tar'
     torch.save(state, filename)
 
 

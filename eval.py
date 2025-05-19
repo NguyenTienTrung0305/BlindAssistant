@@ -2,20 +2,21 @@ from util import *
 from datasets import PascalVOCDataset
 from tqdm import tqdm
 from pprint import PrettyPrinter
+from model import *
 
 # Good formatting when printing the APs for each class and mAP
 pp = PrettyPrinter()
 
 # Parameters
-data_folder = './'
+data_folder = 'D:/Code/Python/Project/BlindAssistant/'
 keep_difficult = True  # difficult ground truth objects must always be considered in mAP calculation, because these objects DO exist!
 batch_size = 64
 workers = 4
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-checkpoint = './checkpoint_ssd300.pth.tar'
+checkpoint = 'Project/BlindAssistant/checkpoint_ssd300_v1.pth.tar'
 
 # Load model checkpoint that is to be evaluated
-checkpoint = torch.load(checkpoint)
+checkpoint = torch.load(checkpoint,  map_location=torch.device('cpu'))
 model = checkpoint['model']
 model = model.to(device)
 
@@ -24,7 +25,7 @@ model.eval()
 
 # Load test data
 test_dataset = PascalVOCDataset(data_folder,
-                                split='test',
+                                split='train',
                                 keep_difficult=keep_difficult)
 test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=False,
                                           collate_fn=test_dataset.collate_fn, num_workers=workers, pin_memory=True)
@@ -58,7 +59,7 @@ def evaluate(test_loader, model):
             predicted_locs, predicted_scores = model(images)
 
             # Detect objects in SSD output
-            det_boxes_batch, det_labels_batch, det_scores_batch = model.detect_objects(predicted_locs, predicted_scores,
+            det_boxes_batch, det_labels_batch, det_scores_batch = model.detect_object(predicted_locs, predicted_scores,
                                                                                        min_score=0.01, max_overlap=0.45,
                                                                                        top_k=200)
             # Evaluation MUST be at min_score=0.01, max_overlap=0.45, top_k=200 for fair comparision with the paper's results and other repos

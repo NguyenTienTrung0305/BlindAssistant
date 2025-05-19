@@ -57,18 +57,8 @@ class PascalVOCDataset(Dataset):
     def __len__(self):
         return len(self.images)
 
+    # đưa về định dạng (Batch_size, depth, width, height)
     def collate_fn(self, batch):
-        """
-        Since each image may have a different number of objects, we need a collate function (to be passed to the DataLoader).
-
-        This describes how to combine these tensors of different sizes. We use lists.
-
-        Note: this need not be defined in this Class, can be standalone.
-
-        :param batch: an iterable of N sets from __getitem__()
-        :return: a tensor of images, lists of varying-size tensors of bounding boxes, labels, and difficulties
-        """
-
         images = list()
         boxes = list()
         labels = list()
